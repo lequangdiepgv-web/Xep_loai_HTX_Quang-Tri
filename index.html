@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Xếp loại HTX nông nghiệp</title>
+  <meta name="description" content="Công cụ chấm điểm, xếp loại hợp tác xã nông nghiệp theo Văn bản hợp nhất số 85/VBHN-BNNMT">
+  <meta name="theme-color" content="#186e46">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Xếp loại HTX">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <img src="icons/icon-192.png" alt="" width="32" height="32">
+      <div>
+        <strong>Xếp loại HTX nông nghiệp</strong>
+        <small>Theo VBHN 85/VBHN-BNNMT</small>
+      </div>
+    </div>
+    <label class="yearbox">Năm đánh giá
+      <select id="yearSel" aria-label="Năm đánh giá"></select>
+    </label>
+  </header>
+
+  <nav id="nav" class="nav" aria-label="Điều hướng">
+    <button data-act="tab" data-tab="dash"><span class="ic">▦</span><span>Tổng hợp</span></button>
+    <button data-act="tab" data-tab="list"><span class="ic">☰</span><span>Danh sách HTX</span></button>
+    <button data-act="tab" data-tab="settings"><span class="ic">⚙</span><span>Dữ liệu &amp; Cài đặt</span></button>
+  </nav>
+
+  <main id="view"></main>
+
+  <dialog id="dlg">
+    <form id="htxForm" method="dialog">
+      <h2 id="dlgTitle">Thêm hợp tác xã</h2>
+      <label class="fld"><span>Tên hợp tác xã *</span><input name="ten" required autocomplete="off"></label>
+      <label class="fld"><span>Xã / phường *</span><input name="xa" list="xaList" required autocomplete="off"></label>
+      <datalist id="xaList"></datalist>
+      <label class="fld"><span>Lĩnh vực hoạt động (Điều 3)</span><select name="linhVuc"></select></label>
+      <label class="fld"><span>Địa chỉ</span><input name="diaChi" autocomplete="off"></label>
+      <label class="fld"><span>Người đại diện</span><input name="nguoiDaiDien" autocomplete="off"></label>
+      <label class="fld"><span>Điện thoại</span><input name="dienThoai" type="tel" inputmode="tel" autocomplete="off"></label>
+      <div class="dlgbtns">
+        <button type="button" class="btn danger" id="dlgDel" hidden>Xóa HTX</button>
+        <span class="grow"></span>
+        <button type="button" class="btn ghost" id="dlgCancel">Hủy</button>
+        <button type="submit" class="btn primary">Lưu</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="infoDlg"><div id="infoBody"></div></dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="printArea"></div>
+
+  <script src="scoring.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

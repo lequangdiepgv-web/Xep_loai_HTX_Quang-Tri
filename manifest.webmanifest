@@ -1,0 +1,17 @@
+{
+  "name": "Chấm điểm xếp loại HTX nông nghiệp",
+  "short_name": "Xếp loại HTX",
+  "description": "Chấm điểm, xếp loại hợp tác xã nông nghiệp theo Văn bản hợp nhất số 85/VBHN-BNNMT",
+  "lang": "vi",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f3f6f4",
+  "theme_color": "#186e46",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
