@@ -779,7 +779,7 @@
 
   function syncCard() {
     return '<div class="card"><h2>Đồng bộ Google Sheets</h2>' +
-      '<p class="small muted">Gửi dữ liệu lên một Google Sheets chung và nhận dữ liệu do cán bộ khác nhập. Cách tạo địa chỉ Web app: xem tệp HUONG-DAN-DONG-BO.md.</p>' +
+      '<p class="small muted">Gửi dữ liệu lên một Google Sheets chung và nhận dữ liệu do cán bộ khác nhập.</p>' +
       '<label class="fld"><span>Địa chỉ Web app (dạng https://script.google.com/.../exec)</span><input id="syUrl" inputmode="url" autocomplete="off" value="' + esc(SYNC.url) + '"></label>' +
       '<label class="fld"><span>Mã khóa (giống SECRET_KEY trong Apps Script; 4 ký tự trở lên, có ký tự đặc biệt)</span><input id="syKey" type="password" autocomplete="off" placeholder="Ví dụ: Kt@7" value="' + esc(SYNC.key) + '"></label>' +
       '<div id="syKeyHint" class="note" style="color:var(--tb)">' + keyHint(SYNC.key) + '</div>' +
