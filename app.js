@@ -64,7 +64,7 @@
   var toastTimer;
   function toast(msg) {
     var t = $('#toast'); t.textContent = msg; t.classList.add('on');
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('on'); }, 2600);
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('on'); }, Math.max(2600, msg.length * 60));
   }
   function badge(k, label) { return '<span class="badge ' + k + '">' + esc(label) + '</span>'; }
 
@@ -643,6 +643,8 @@
       method: 'POST', redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // không gây yêu cầu kiểm tra trước (CORS preflight)
       body: JSON.stringify(Object.assign({ key: SYNC.key, by: SYNC.by }, payload))
+    }).catch(function () {
+      return diagnoseFetch().then(function (m) { throw new Error(m); });
     }).then(function (r) {
       if (!r.ok) throw new Error('Máy chủ trả mã lỗi ' + r.status);
       return r.text();
@@ -720,11 +722,22 @@
       .then(function () { syncing = false; renderSyncStatus(); });
   }
 
+  // "Failed to fetch" không nói rõ lý do; thử một yêu cầu không cần đọc kết quả để phân biệt hai nhóm nguyên nhân
+  function diagnoseFetch() {
+    return fetch(SYNC.url, { mode: 'no-cors', redirect: 'follow' }).then(function () {
+      return 'Máy tính tới được Google nhưng Google không trả dữ liệu cho app. Thường do: (1) "Người có quyền truy cập" chưa phải "Bất kỳ ai"; ' +
+        '(2) chưa triển khai "Phiên bản mới" sau khi dán hoặc sửa mã; (3) mã Code.gs dán thiếu hoặc bị lỗi. ' +
+        'Hãy mở địa chỉ Web app trong cửa sổ ẩn danh để xem Google báo gì.';
+    }, function () {
+      return 'Không tới được script.google.com. Kiểm tra mạng, VPN, tường lửa cơ quan hoặc tiện ích chặn quảng cáo.';
+    });
+  }
+
   function syncTest() {
     api({ action: 'ping' }).then(function (j) {
       SYNC.err = ''; saveSync(); renderSyncStatus();
       toast('Kết nối thành công. Google Sheets đang có ' + j.htx + ' HTX, ' + j.evals + ' bản chấm điểm.');
-    }).catch(function (e) { toast('Không kết nối được: ' + e.message); });
+    }).catch(function (e) { SYNC.err = e.message; saveSync(); renderSyncStatus(); toast('Không kết nối được: ' + e.message); });
   }
 
   function scheduleAuto(ms) {
