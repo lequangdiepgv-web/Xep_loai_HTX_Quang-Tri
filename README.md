@@ -55,6 +55,7 @@ Bấm **Dữ liệu & Cài đặt → Nạp dữ liệu mẫu** để xem thử.
 
 - Tiêu chí 1 = 38 điểm, 2 = 16, 3 = 17, 4 = 8, 5 = 6, 6 = 15 (tổng 100 theo Phụ lục 1).
 - 1.b (tổng doanh thu) lấy theo doanh thu thực hiện; tỷ lệ trích quỹ (1.d, 1.đ) tính trên số thu nhập ở 1.c.
+- Năm đánh giá chọn được: 2026 đến 2030 (sửa `YEAR_MIN`, `YEAR_MAX` ở đầu `app.js` nếu cần mở rộng).
 - Đúng 500 thành viên: văn bản không nêu rõ, app tính 8 điểm.
 - Tiêu chí 5: mức 3 điểm hiển thị là "Được cấp xã khen thưởng" (văn bản gốc ghi cấp huyện).
 - Bị xử phạt vi phạm hành chính trong năm → xếp loại yếu; HTX mới thành lập chưa đủ 12 tháng → không xếp loại.

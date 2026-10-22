@@ -5,7 +5,10 @@
   var KEY = 'htx-app-v1';
   var LINH_VUC = ['Trồng trọt', 'Chăn nuôi', 'Lâm nghiệp', 'Thủy sản', 'Diêm nghiệp', 'Nước sạch nông thôn', 'Nông nghiệp tổng hợp'];
   var CLASSES = ['tot', 'kha', 'tb', 'yeu', 'none'];
-  var DEF_YEAR = new Date().getFullYear() - 1; // hằng năm đánh giá kết quả của năm trước
+  // Năm đánh giá cố định từ 2026 đến 2030
+  var YEAR_MIN = 2026, YEAR_MAX = 2030;
+  // Mặc định là năm trước (đánh giá vào quý I năm sau), nằm trong khoảng cho phép
+  var DEF_YEAR = Math.min(YEAR_MAX, Math.max(YEAR_MIN, new Date().getFullYear() - 1));
 
   function $(s, r) { return (r || document).querySelector(s); }
   function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
@@ -28,6 +31,7 @@
     return fresh();
   }
   var S = load();
+  if (!(S.year >= YEAR_MIN && S.year <= YEAR_MAX)) S.year = DEF_YEAR;
   var SYNC = loadSync();
   function loadSync() {
     var d; try { d = JSON.parse(localStorage.getItem('htx-sync-v1')); } catch (e) { /* bỏ qua */ }
@@ -69,9 +73,8 @@
   function badge(k, label) { return '<span class="badge ' + k + '">' + esc(label) + '</span>'; }
 
   function fillYearSelect() {
-    var sel = $('#yearSel'), cy = new Date().getFullYear(), html = '';
-    var from = Math.min(2024, S.year), to = Math.max(cy, S.year);
-    for (var y = to; y >= from; y--) html += '<option value="' + y + '"' + (y === S.year ? ' selected' : '') + '>' + y + '</option>';
+    var sel = $('#yearSel'), html = '';
+    for (var y = YEAR_MIN; y <= YEAR_MAX; y++) html += '<option value="' + y + '"' + (y === S.year ? ' selected' : '') + '>' + y + '</option>';
     sel.innerHTML = html;
   }
 
@@ -412,7 +415,7 @@
       try {
         var d = JSON.parse(rd.result);
         if (!d || !Array.isArray(d.htx)) throw new Error('sai định dạng');
-        if (replace) { S = Object.assign(fresh(), d, { evals: d.evals || {}, dels: [] }); SYNC.since = ''; saveSync(); markAllDirty(); }
+        if (replace) { S = Object.assign(fresh(), d, { evals: d.evals || {}, dels: [] }); SYNC.since = ''; saveSync(); markAllDirty(); if (!(S.year >= YEAR_MIN && S.year <= YEAR_MAX)) S.year = DEF_YEAR; }
         else {
           var have = {}; S.htx.forEach(function (h) { have[h.id] = 1; });
           d.htx.forEach(function (h) {
@@ -559,6 +562,7 @@
   document.addEventListener('input', function (e) {
     var t = e.target;
     if (t.id === 'q') { ui.q = t.value; renderListBody(); return; }
+    if (t.id === 'syKey') { var kh = $('#syKeyHint'); if (kh) kh.textContent = keyHint(t.value); return; }
     if (t.hasAttribute('data-b')) {
       var p = t.getAttribute('data-b').split('.'), ev = ensureEv();
       ev.phieu[+p[0]][+p[1]] = t.value.replace(/[^0-9]/g, ''); t.value = ev.phieu[+p[0]][+p[1]];
@@ -764,11 +768,21 @@
       (SYNC.err ? '<br><span style="color:var(--yeu)">Lỗi gần nhất: ' + esc(SYNC.err) + '</span>' : '');
   }
 
+  // Gợi ý (không chặn): mã khóa nên từ 4 ký tự và có ít nhất 1 ký tự đặc biệt
+  function keyHint(k) {
+    k = k || '';
+    if (!k) return '';
+    if (k.length < 4) return 'Mã khóa cần từ 4 ký tự trở lên.';
+    if (!/[^A-Za-z0-9\s]/.test(k)) return 'Nên có ít nhất 1 ký tự đặc biệt (ví dụ @ # $ % ! &).';
+    return '';
+  }
+
   function syncCard() {
     return '<div class="card"><h2>Đồng bộ Google Sheets</h2>' +
       '<p class="small muted">Gửi dữ liệu lên một Google Sheets chung và nhận dữ liệu do cán bộ khác nhập. Cách tạo địa chỉ Web app: xem tệp HUONG-DAN-DONG-BO.md.</p>' +
       '<label class="fld"><span>Địa chỉ Web app (dạng https://script.google.com/.../exec)</span><input id="syUrl" inputmode="url" autocomplete="off" value="' + esc(SYNC.url) + '"></label>' +
-      '<label class="fld"><span>Mã khóa (giống SECRET_KEY trong Apps Script)</span><input id="syKey" type="password" autocomplete="off" value="' + esc(SYNC.key) + '"></label>' +
+      '<label class="fld"><span>Mã khóa (giống SECRET_KEY trong Apps Script; 4 ký tự trở lên, có ký tự đặc biệt)</span><input id="syKey" type="password" autocomplete="off" placeholder="Ví dụ: Kt@7" value="' + esc(SYNC.key) + '"></label>' +
+      '<div id="syKeyHint" class="note" style="color:var(--tb)">' + keyHint(SYNC.key) + '</div>' +
       '<label class="fld"><span>Tên cán bộ nhập (để biết ai cập nhật)</span><input id="syBy" autocomplete="off" value="' + esc(SYNC.by) + '"></label>' +
       '<label class="chk"><input type="checkbox" id="syAuto"' + (SYNC.auto ? ' checked' : '') + '><span>Tự động đồng bộ (khi mở app, sau khi sửa, và mỗi 3 phút)</span></label>' +
       '<div id="syncStatus" class="note"></div>' +

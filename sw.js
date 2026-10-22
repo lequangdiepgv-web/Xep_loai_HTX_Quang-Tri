@@ -1,6 +1,6 @@
 /* Service worker: giúp app chạy offline và cài được như ứng dụng.
    Khi sửa code, hãy tăng số phiên bản CACHE (v1 → v2...) để người dùng nhận bản mới. */
-const CACHE = 'htx-app-v4';
+const CACHE = 'htx-app-v5';
 const ASSETS = [
   './', './index.html', './styles.css', './scoring.js', './app.js',
   './manifest.webmanifest',
