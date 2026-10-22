@@ -19,7 +19,7 @@
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
   /* ---------- Dữ liệu ---------- */
-  function fresh() { return { ver: 1, year: DEF_YEAR, htx: [], evals: {} }; }
+  function fresh() { return { ver: 1, year: DEF_YEAR, htx: [], evals: {}, dels: [] }; }
   function load() {
     try {
       var d = JSON.parse(localStorage.getItem(KEY));
@@ -28,6 +28,12 @@
     return fresh();
   }
   var S = load();
+  var SYNC = loadSync();
+  function loadSync() {
+    var d; try { d = JSON.parse(localStorage.getItem('htx-sync-v1')); } catch (e) { /* bỏ qua */ }
+    return Object.assign({ url: '', key: '', by: '', auto: true, since: '', last: '', err: '' }, d || {});
+  }
+  function saveSync() { try { localStorage.setItem('htx-sync-v1', JSON.stringify(SYNC)); } catch (e) { /* bỏ qua */ } }
   var ui = { tab: 'dash', q: '', xa: '', cls: '', evalId: null };
   var saveTimer = null;
 
@@ -35,6 +41,8 @@
     clearTimeout(saveTimer);
     try { localStorage.setItem(KEY, JSON.stringify(S)); }
     catch (e) { toast('Không lưu được dữ liệu (bộ nhớ thiết bị đầy hoặc bị chặn).'); }
+    updateSyncBtn();
+    if (SYNC.auto && syncReady() && pendingCount()) scheduleAuto(20000);
   }
   function save() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 300); }
   window.addEventListener('pagehide', saveNow);
@@ -88,6 +96,7 @@
     else if (ui.tab === 'list') { v.innerHTML = viewList(); renderListBody(); }
     else if (ui.tab === 'eval') { v.innerHTML = viewEval(); updateScores(); }
     else v.innerHTML = viewSettings();
+    renderSyncStatus();
   }
 
   /* ---------- Tab: Tổng hợp ---------- */
@@ -304,7 +313,7 @@
   function ensureEv() {
     var k = evKey(ui.evalId);
     if (!S.evals[k]) S.evals[k] = { phieu: [] };
-    S.evals[k].updatedAt = new Date().toISOString();
+    stamp(S.evals[k]);
     return S.evals[k];
   }
 
@@ -330,13 +339,14 @@
       diaChi: f.elements.diaChi.value.trim(), nguoiDaiDien: f.elements.nguoiDaiDien.value.trim(), dienThoai: f.elements.dienThoai.value.trim()
     };
     if (!d.ten || !d.xa) return;
-    if (id) { Object.assign(getHtx(id), d); delete getHtx(id).lienHe; } else { d.id = uid(); S.htx.push(d); }
+    if (id) { var hh = getHtx(id); Object.assign(hh, d); delete hh.lienHe; stamp(hh); } else { d.id = uid(); stamp(d); S.htx.push(d); }
     saveNow(); $('#dlg').close(); render(); toast('Đã lưu hợp tác xã');
   });
   $('#dlgCancel').addEventListener('click', function () { $('#dlg').close(); });
   $('#dlgDel').addEventListener('click', function () {
     var id = $('#htxForm').dataset.id, h = getHtx(id);
     if (!h || !confirm('Xóa hợp tác xã "' + h.ten + '" và toàn bộ kết quả chấm điểm các năm?')) return;
+    if (!h.demo) S.dels.push({ t: 'htx', id: id, at: new Date().toISOString() });
     S.htx = S.htx.filter(function (x) { return x.id !== id; });
     Object.keys(S.evals).forEach(function (k) { if (k.indexOf(id + '|') === 0) delete S.evals[k]; });
     saveNow(); $('#dlg').close();
@@ -402,13 +412,17 @@
       try {
         var d = JSON.parse(rd.result);
         if (!d || !Array.isArray(d.htx)) throw new Error('sai định dạng');
-        if (replace) { S = Object.assign(fresh(), d, { evals: d.evals || {} }); }
+        if (replace) { S = Object.assign(fresh(), d, { evals: d.evals || {}, dels: [] }); SYNC.since = ''; saveSync(); markAllDirty(); }
         else {
           var have = {}; S.htx.forEach(function (h) { have[h.id] = 1; });
-          d.htx.forEach(function (h) { if (!have[h.id]) S.htx.push(h); });
+          d.htx.forEach(function (h) {
+            var cur = have[h.id] ? getHtx(h.id) : null;
+            if (!cur) { h._d = 1; if (!h.updatedAt) h.updatedAt = new Date().toISOString(); S.htx.push(h); }
+            else if ((h.updatedAt || '') > (cur.updatedAt || '')) { Object.assign(cur, h, { _d: 1 }); }
+          });
           Object.keys(d.evals || {}).forEach(function (k) {
             var a = S.evals[k], b = d.evals[k];
-            if (!a || (b.updatedAt || '') > (a.updatedAt || '')) S.evals[k] = b;
+            if (!a || (b.updatedAt || '') > (a.updatedAt || '')) { b._d = 1; if (!b.updatedAt) b.updatedAt = new Date().toISOString(); S.evals[k] = b; }
           });
         }
         saveNow(); fillYearSelect(); go('dash'); toast('Đã nhập dữ liệu');
@@ -417,7 +431,7 @@
     rd.readAsText(file);
   }
   function loadDemo() {
-    var y = S.year, mk = function (ten, xa, lv) { return { id: uid(), ten: ten, xa: xa, linhVuc: lv, diaChi: '', nguoiDaiDien: '', dienThoai: '' }; };
+    var y = S.year, mk = function (ten, xa, lv) { return { id: uid(), ten: ten, xa: xa, linhVuc: lv, diaChi: '', nguoiDaiDien: '', dienThoai: '', demo: 1 }; };
     var a = mk('HTX Nông nghiệp Tân Lập', 'Xã Mẫu A', 'Trồng trọt'), b = mk('HTX Chăn nuôi Hòa Bình', 'Xã Mẫu A', 'Chăn nuôi'),
       c = mk('HTX Dịch vụ Nông nghiệp Đồng Xanh', 'Xã Mẫu B', 'Nông nghiệp tổng hợp'), d = mk('HTX Thủy sản Sông Hương', 'Xã Mẫu B', 'Thủy sản');
     S.htx.push(a, b, c, d);
@@ -467,7 +481,7 @@
   var deferredInstall = null;
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferredInstall = e; if (ui.tab === 'settings') render(); });
   function viewSettings() {
-    return '<div class="card"><h2>Sao lưu &amp; chuyển dữ liệu</h2>' +
+    return syncCard() + '<div class="card"><h2>Sao lưu &amp; chuyển dữ liệu</h2>' +
       '<p class="small muted">Dữ liệu được lưu ngay trên thiết bị này (không gửi đi đâu). Hãy sao lưu định kỳ. Cán bộ xã có thể gửi tệp sao lưu lên cấp tỉnh để <b>gộp</b> vào bảng tổng hợp.</p>' +
       '<div class="btnrow"><button class="btn primary" data-act="backup">Sao lưu ra tệp (.json)</button>' +
       '<label class="btn">Nhập &amp; gộp tệp<input type="file" accept=".json,application/json" data-import="merge" hidden></label>' +
@@ -481,7 +495,9 @@
       '<p class="note">Cần mở app từ địa chỉ https (ví dụ GitHub Pages) thì mới cài được và chạy offline. Xem README.md.</p></div>' +
 
       '<div class="card"><h2>Dữ liệu</h2><p class="small muted">Hiện có ' + S.htx.length + ' HTX, ' + Object.keys(S.evals).length + ' bản chấm điểm.</p>' +
-      '<div class="btnrow"><button class="btn" data-act="demo">Nạp dữ liệu mẫu</button><button class="btn danger" data-act="wipe">Xóa toàn bộ dữ liệu</button></div></div>' +
+      '<div class="btnrow"><button class="btn" data-act="demo">Nạp dữ liệu mẫu</button>' +
+      (S.htx.some(function (h) { return h.demo; }) ? '<button class="btn" data-act="rm-demo">Xóa dữ liệu mẫu</button>' : '') +
+      '<button class="btn danger" data-act="wipe">Xóa toàn bộ dữ liệu</button></div></div>' +
 
       '<div class="card"><h2>Căn cứ &amp; lưu ý</h2><ul class="steps small">' +
       '<li>Văn bản hợp nhất số 85/VBHN-BNNMT ngày 26/12/2025 (Thông tư 09/2017/TT-BNNPTNT, sửa đổi bởi Thông tư 13/2025/TT-BNNMT): 6 tiêu chí, 100 điểm.</li>' +
@@ -496,6 +512,17 @@
     var t = e.target.closest('[data-act]'); if (!t) return;
     var act = t.getAttribute('data-act'), id = t.getAttribute('data-id');
     if (act === 'tab') go(t.getAttribute('data-tab'));
+    else if (act === 'sync') { if (syncReady()) doSync({ manual: true }); else { go('settings'); toast('Nhập địa chỉ Web app và mã khóa để bật đồng bộ'); } }
+    else if (act === 'sync-now') doSync({ manual: true });
+    else if (act === 'sync-test') syncTest();
+    else if (act === 'sync-full') { if (confirm('Gửi lại TOÀN BỘ dữ liệu trên máy này lên Google Sheets? (Bản nào trên Sheets mới hơn vẫn được giữ.)')) doSync({ manual: true, full: true }); }
+    else if (act === 'sync-reload') doSync({ manual: true, reload: true });
+    else if (act === 'rm-demo') {
+      var dm = {}; S.htx.forEach(function (h) { if (h.demo) dm[h.id] = 1; });
+      S.htx = S.htx.filter(function (h) { return !dm[h.id]; });
+      Object.keys(S.evals).forEach(function (k) { if (dm[k.split('|')[0]]) delete S.evals[k]; });
+      saveNow(); render(); toast('Đã xóa dữ liệu mẫu');
+    }
     else if (act === 'add-htx') openDlg(null);
     else if (act === 'edit-htx') openDlg(id);
     else if (act === 'view-htx') openInfo(id);
@@ -510,10 +537,13 @@
     else if (act === 'print') printSheet(id);
     else if (act === 'install' && deferredInstall) { deferredInstall.prompt(); deferredInstall = null; }
     else if (act === 'wipe') {
-      if (confirm('Xóa TOÀN BỘ dữ liệu trên thiết bị này? Hãy sao lưu trước nếu cần.')) { S = fresh(); saveNow(); fillYearSelect(); go('dash'); toast('Đã xóa dữ liệu'); }
+      if (confirm('Xóa TOÀN BỘ dữ liệu trên thiết bị này? Hãy sao lưu trước nếu cần.')) { S = fresh(); SYNC.since = ''; saveSync(); saveNow(); fillYearSelect(); go('dash'); toast('Đã xóa dữ liệu'); }
     }
     else if (act === 'del-eval') {
-      if (confirm('Xóa kết quả chấm điểm năm ' + S.year + ' của HTX này?')) { delete S.evals[evKey(id)]; saveNow(); render(); }
+      if (confirm('Xóa kết quả chấm điểm năm ' + S.year + ' của HTX này?')) {
+        var hx = getHtx(id); if (hx && !hx.demo) S.dels.push({ t: 'ev', key: evKey(id), at: new Date().toISOString() });
+        delete S.evals[evKey(id)]; saveNow(); render();
+      }
     }
     else if (act === 'add-ballot') {
       var ev = ensureEv(); (ev.phieu = ev.phieu || []).push(['', '', '']); save();
@@ -548,7 +578,11 @@
 
   document.addEventListener('change', function (e) {
     var t = e.target;
-    if (t.id === 'fxa') { ui.xa = t.value; renderListBody(); }
+    if (t.id === 'syUrl') { SYNC.url = t.value.trim(); SYNC.since = ''; saveSync(); renderSyncStatus(); }
+    else if (t.id === 'syKey') { SYNC.key = t.value.trim(); SYNC.since = ''; saveSync(); renderSyncStatus(); }
+    else if (t.id === 'syBy') { SYNC.by = t.value.trim(); saveSync(); }
+    else if (t.id === 'syAuto') { SYNC.auto = t.checked; saveSync(); }
+    else if (t.id === 'fxa') { ui.xa = t.value; renderListBody(); }
     else if (t.id === 'fcls') { ui.cls = t.value; renderListBody(); }
     else if (t.id === 'yearSel') { S.year = +t.value; saveNow(); render(); }
     else if (t.hasAttribute('data-import') && t.files[0]) {
@@ -558,9 +592,189 @@
     }
   });
 
+  /* ---------- Đồng bộ Google Sheets ---------- */
+  var syncing = false, autoTimer = null;
+
+  function stamp(rec) { rec.updatedAt = new Date().toISOString(); rec._d = 1; }
+  function syncReady() { return /^https:\/\/script\.google\.com\/.+\/exec$/.test(SYNC.url || '') && !!SYNC.key; }
+  function pushableKey(k) { var h = getHtx(k.split('|')[0]); return !!h && !h.demo; }
+
+  function pendingCount() {
+    var n = S.dels.length;
+    S.htx.forEach(function (h) { if (h._d && !h.demo) n++; });
+    Object.keys(S.evals).forEach(function (k) { if (S.evals[k]._d && pushableKey(k)) n++; });
+    return n;
+  }
+  function markAllDirty() {
+    var now = new Date().toISOString();
+    S.htx.forEach(function (h) { if (!h.demo) { h._d = 1; if (!h.updatedAt) h.updatedAt = now; } });
+    Object.keys(S.evals).forEach(function (k) { var e = S.evals[k]; e._d = 1; if (!e.updatedAt) e.updatedAt = now; });
+  }
+  function sumOf(ev) {
+    var r = Scoring.scoreEvaluation(ev);
+    return { soThanhVien: ev.soThanhVien || '', total: r.total, rank: r.final ? r.rankShort : '',
+      status: r.final ? 'Hoàn tất' : 'Đang nhập', crit: r.criteria.map(function (c) { return c.score; }) };
+  }
+
+  function buildPayload(full) {
+    var now = new Date().toISOString(), htx = [], evals = [], sent = { h: {}, e: {} };
+    S.htx.forEach(function (h) {
+      if (h.demo || !(full || h._d)) return;
+      if (!h.updatedAt) h.updatedAt = now;
+      sent.h[h.id] = h.updatedAt;
+      htx.push({ id: h.id, ten: h.ten, xa: h.xa, linhVuc: h.linhVuc, diaChi: h.diaChi || '',
+        nguoiDaiDien: h.nguoiDaiDien || h.lienHe || '', dienThoai: h.dienThoai || '', updatedAt: h.updatedAt });
+    });
+    Object.keys(S.evals).forEach(function (k) {
+      var e = S.evals[k];
+      if (!pushableKey(k) || !(full || e._d)) return;
+      if (!e.updatedAt) e.updatedAt = now;
+      sent.e[k] = e.updatedAt;
+      var data = JSON.parse(JSON.stringify(e)); delete data._d; delete data.updatedAt;
+      var p = k.split('|');
+      evals.push({ key: k, htxId: p[0], year: +p[1], data: data, sum: sumOf(e), updatedAt: e.updatedAt });
+    });
+    return { htx: htx, evals: evals, dels: S.dels.slice(), sent: sent, n: htx.length + evals.length + S.dels.length };
+  }
+
+  function api(payload) {
+    if (!syncReady()) return Promise.reject(new Error('Chưa nhập đúng địa chỉ Web app (kết thúc bằng /exec) và mã khóa'));
+    return fetch(SYNC.url, {
+      method: 'POST', redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // không gây yêu cầu kiểm tra trước (CORS preflight)
+      body: JSON.stringify(Object.assign({ key: SYNC.key, by: SYNC.by }, payload))
+    }).then(function (r) {
+      if (!r.ok) throw new Error('Máy chủ trả mã lỗi ' + r.status);
+      return r.text();
+    }).then(function (t) {
+      var j;
+      try { j = JSON.parse(t); }
+      catch (e) { throw new Error('Phản hồi không đúng. Kiểm tra địa chỉ Web app và quyền truy cập "Bất kỳ ai" khi triển khai.'); }
+      if (!j.ok) throw new Error(j.error || 'Lỗi không rõ');
+      return j;
+    });
+  }
+
+  // Áp dụng dữ liệu từ máy chủ: bản có giờ sửa mới hơn thắng
+  function applyServer(res, hold) {
+    var changed = 0, held = false;
+    var cur = ui.tab === 'eval' ? evKey(ui.evalId) : null;
+    (res.htx || []).forEach(function (r) {
+      var l = getHtx(r.id);
+      if (r.deleted) {
+        if (l && !l.demo && (l.updatedAt || '') <= r.updatedAt) {
+          S.htx = S.htx.filter(function (x) { return x.id !== r.id; });
+          Object.keys(S.evals).forEach(function (k) { if (k.indexOf(r.id + '|') === 0) delete S.evals[k]; });
+          changed++;
+        }
+        return;
+      }
+      var rec = { id: r.id, ten: r.ten, xa: r.xa, linhVuc: r.linhVuc, diaChi: r.diaChi, nguoiDaiDien: r.nguoiDaiDien, dienThoai: r.dienThoai, updatedAt: r.updatedAt };
+      if (!l) { S.htx.push(rec); changed++; }
+      else if (!l.demo && (l.updatedAt || '') < r.updatedAt) { delete l.lienHe; Object.assign(l, rec); delete l._d; changed++; }
+    });
+    (res.evals || []).forEach(function (r) {
+      var h = getHtx(r.htxId); if (!h || h.demo) return;
+      var l = S.evals[r.key];
+      if (r.deleted) {
+        if (l && (l.updatedAt || '') <= r.updatedAt) {
+          if (hold && r.key === cur) { held = true; return; }
+          delete S.evals[r.key]; changed++;
+        }
+        return;
+      }
+      if (!l || (l.updatedAt || '') < r.updatedAt) {
+        if (hold && r.key === cur) { held = true; return; }   // đang mở nhập: không ghi đè giữa chừng
+        var d = r.data || {}; d.updatedAt = r.updatedAt; S.evals[r.key] = d; changed++;
+      }
+    });
+    return { changed: changed, held: held };
+  }
+
+  function doSync(opts) {
+    opts = opts || {};
+    if (syncing) return Promise.resolve();
+    if (!syncReady()) { if (opts.manual) toast('Chưa cấu hình đồng bộ: nhập địa chỉ Web app và mã khóa.'); return Promise.resolve(); }
+    if (!opts.manual && navigator.onLine === false) return Promise.resolve();
+    syncing = true; renderSyncStatus();
+    var p = buildPayload(!!opts.full);
+    return api({ action: 'sync', since: opts.reload ? '' : SYNC.since, htx: p.htx, evals: p.evals, dels: p.dels })
+      .then(function (res) {
+        Object.keys(p.sent.h).forEach(function (id) { var h = getHtx(id); if (h && h.updatedAt === p.sent.h[id]) delete h._d; });
+        Object.keys(p.sent.e).forEach(function (k) { var e = S.evals[k]; if (e && e.updatedAt === p.sent.e[k]) delete e._d; });
+        S.dels.splice(0, p.dels.length);
+        var r = applyServer(res, !opts.manual && ui.tab === 'eval');
+        if (!r.held) SYNC.since = res.serverTime;
+        SYNC.last = new Date().toISOString(); SYNC.err = ''; saveSync(); saveNow();
+        if (ui.tab === 'eval' && !getHtx(ui.evalId)) ui.tab = 'list';
+        var ae = document.activeElement, typing = ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName);
+        if (r.changed && (opts.manual || (ui.tab !== 'eval' && !typing))) render();
+        if (opts.manual) toast('Đã đồng bộ: gửi ' + p.n + ', nhận ' + r.changed + ' bản ghi');
+      })
+      .catch(function (e) {
+        var m = (e && e.message) || String(e);
+        if (/Failed to fetch|NetworkError|Load failed/i.test(m)) m = 'Không kết nối được (kiểm tra mạng hoặc địa chỉ Web app).';
+        SYNC.err = m; saveSync();
+        if (opts.manual) toast('Đồng bộ lỗi: ' + m);
+      })
+      .then(function () { syncing = false; renderSyncStatus(); });
+  }
+
+  function syncTest() {
+    api({ action: 'ping' }).then(function (j) {
+      SYNC.err = ''; saveSync(); renderSyncStatus();
+      toast('Kết nối thành công. Google Sheets đang có ' + j.htx + ' HTX, ' + j.evals + ' bản chấm điểm.');
+    }).catch(function (e) { toast('Không kết nối được: ' + e.message); });
+  }
+
+  function scheduleAuto(ms) {
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(function () { doSync({}); }, ms);
+  }
+
+  function updateSyncBtn() {
+    var b = $('#syncBtn'); if (!b) return;
+    var n = pendingCount();
+    b.classList.toggle('spin', syncing);
+    b.classList.toggle('err', !!SYNC.err);
+    b.querySelector('.n').textContent = n ? String(n) : '';
+    b.title = syncReady() ? (n ? n + ' bản ghi chưa gửi' : 'Đã đồng bộ') + (SYNC.err ? ' - ' + SYNC.err : '') : 'Chưa cấu hình đồng bộ';
+  }
+  function renderSyncStatus() {
+    updateSyncBtn();
+    var el = $('#syncStatus'); if (!el) return;
+    if (!syncReady()) { el.innerHTML = '<span class="muted">Chưa cấu hình. Nhập địa chỉ Web app và mã khóa ở trên.</span>'; return; }
+    var n = pendingCount();
+    el.innerHTML = (syncing ? 'Đang đồng bộ...<br>' : '') +
+      (SYNC.last ? 'Lần đồng bộ cuối: <b>' + esc(new Date(SYNC.last).toLocaleString('vi-VN')) + '</b><br>' : 'Chưa đồng bộ lần nào.<br>') +
+      'Chưa gửi lên Sheets: <b>' + n + '</b> bản ghi' +
+      (SYNC.err ? '<br><span style="color:var(--yeu)">Lỗi gần nhất: ' + esc(SYNC.err) + '</span>' : '');
+  }
+
+  function syncCard() {
+    return '<div class="card"><h2>Đồng bộ Google Sheets</h2>' +
+      '<p class="small muted">Gửi dữ liệu lên một Google Sheets chung và nhận dữ liệu do cán bộ khác nhập. Cách tạo địa chỉ Web app: xem tệp HUONG-DAN-DONG-BO.md.</p>' +
+      '<label class="fld"><span>Địa chỉ Web app (dạng https://script.google.com/.../exec)</span><input id="syUrl" inputmode="url" autocomplete="off" value="' + esc(SYNC.url) + '"></label>' +
+      '<label class="fld"><span>Mã khóa (giống SECRET_KEY trong Apps Script)</span><input id="syKey" type="password" autocomplete="off" value="' + esc(SYNC.key) + '"></label>' +
+      '<label class="fld"><span>Tên cán bộ nhập (để biết ai cập nhật)</span><input id="syBy" autocomplete="off" value="' + esc(SYNC.by) + '"></label>' +
+      '<label class="chk"><input type="checkbox" id="syAuto"' + (SYNC.auto ? ' checked' : '') + '><span>Tự động đồng bộ (khi mở app, sau khi sửa, và mỗi 3 phút)</span></label>' +
+      '<div id="syncStatus" class="note"></div>' +
+      '<div class="btnrow"><button class="btn primary" data-act="sync-now">Đồng bộ ngay</button>' +
+      '<button class="btn" data-act="sync-test">Kiểm tra kết nối</button>' +
+      '<button class="btn" data-act="sync-full">Gửi lại toàn bộ dữ liệu trên máy</button>' +
+      '<button class="btn" data-act="sync-reload">Tải lại toàn bộ từ Sheets</button></div></div>';
+  }
+
   /* ---------- Khởi động ---------- */
   fillYearSelect();
   render();
+  updateSyncBtn();
+  setTimeout(function () { if (SYNC.auto && syncReady()) doSync({}); }, 1500);
+  setInterval(function () { if (SYNC.auto && syncReady() && !document.hidden) doSync({}); }, 180000);
+  window.addEventListener('online', function () { if (SYNC.auto && syncReady()) doSync({}); });
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && SYNC.auto && syncReady() && (!SYNC.last || Date.now() - new Date(SYNC.last).getTime() > 60000)) doSync({});
+  });
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { /* bỏ qua */ }); });
   }

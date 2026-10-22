@@ -59,11 +59,16 @@ Bấm **Dữ liệu & Cài đặt → Nạp dữ liệu mẫu** để xem thử.
 - Tiêu chí 5: mức 3 điểm hiển thị là "Được cấp xã khen thưởng" (văn bản gốc ghi cấp huyện).
 - Bị xử phạt vi phạm hành chính trong năm → xếp loại yếu; HTX mới thành lập chưa đủ 12 tháng → không xếp loại.
 
+## Đồng bộ Google Sheets (nhiều cán bộ cùng nhập)
+
+App có sẵn chức năng đồng bộ về một Google Sheets chung bằng Google Apps Script. Mã máy chủ và hướng dẫn từng bước nằm ở thư mục **`htx-apps-script`** (cùng cấp với thư mục `htx-app` trong tệp zip): `Code.gs` và `HUONG-DAN-DONG-BO.md`.
+**Không đưa thư mục `htx-apps-script` lên GitHub** vì `Code.gs` chứa mã khóa riêng.
+Sau khi triển khai, nhập địa chỉ Web app và mã khóa trong app: **Dữ liệu & Cài đặt → Đồng bộ Google Sheets**.
+
 ## Cập nhật app
 
 Sau khi sửa code và tải lại lên GitHub, hãy tăng số phiên bản trong `sw.js` (`htx-app-v1` → `htx-app-v2`) để thiết bị nhận bản mới.
 
 ## Hướng phát triển
 
-- Đồng bộ dữ liệu các xã về một bảng chung (Google Sheets + Apps Script) để cấp tỉnh tổng hợp tự động.
 - Đóng gói lên App Store / Google Play (Capacitor) nếu cần.
